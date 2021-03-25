@@ -12,4 +12,4 @@ int check_bessy_objectenimport(HWND hWnd, std::vector<std::string> col_names);
 
 int parse_bessy_objectenimport(HWND hWnd, std::string filepath_s);
 
-std::string check_and_convert_gps(std::string input);
+std::string check_and_convert_gps(std::string input,int latlon);

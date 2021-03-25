@@ -422,7 +422,7 @@ int parse_bessy_objectenimport(HWND hWnd, std::string filepath) {
     std::stringstream tmp_str;
 
     std::string filename_out = filepath;
-    filename_out.replace(filename_out.end() - 3, filename_out.end(), "_gps_geconverteerd.csv");
+    filename_out.replace(filename_out.end() - 4, filename_out.end(), "_gps_geconverteerd.csv");
     std::ofstream file_out(filename_out);
 
     int rowno = 1; // 1 = header
@@ -436,7 +436,8 @@ int parse_bessy_objectenimport(HWND hWnd, std::string filepath) {
 
         //write header to output
         file_out << col_cmp[0];
-        for (int i = 1; (col_cmp.size() - 1); i++) {
+  
+        for (int i = 1; i<(col_cmp.size()-1); i++) {
             file_out << "," << col_cmp[i];
         }
         file_out << "\n";
@@ -445,18 +446,14 @@ int parse_bessy_objectenimport(HWND hWnd, std::string filepath) {
 
             rowno++;
             //write line to ouput
+            //std::string test = row[col_cmp[0]].get();
             file_out << row[col_cmp[0]].get();
-            for (int i = 1; (col_cmp.size() - 3); i++) {
-                if(row[col_cmp[0]].get().compare("GPS Latitude") == 0){
-                    file_out << "," << check_and_convert_gps(row[col_cmp[0]].get());
-                }
-                else if(row[col_cmp[0]].get().compare("GPS Longitude") == 0){
-                    file_out << "," << check_and_convert_gps(row[col_cmp[0]].get());
-                }
-                else {
-                    file_out << "," << row[col_cmp[0]].get();
-                }
+            for (int i = 1; i < (col_cmp.size() - 3); i++) {
+                std::string tempstr = row[col_cmp[i]].get();
+                file_out << "," << row[col_cmp[i]].get();
             }
+            file_out << "," << check_and_convert_gps(row["GPS Latitude"].get(),0);
+            file_out << "," << check_and_convert_gps(row["GPS Longitude"].get(),1);
             file_out << "\n";
 
             //update info log
@@ -486,13 +483,14 @@ int parse_bessy_objectenimport(HWND hWnd, std::string filepath) {
     return 1;
 }
 
-std::string check_and_convert_gps(std::string input) {
-    //check std:string string on:  [,] replacement [.] 
+std::string check_and_convert_gps(std::string input, int latlon) {
     size_t start_pos = 0;
+    std::string ofnlat = "51.86453480159791";
+    std::string ofnlon = "5.318332207240367";
     std::string str = input;
     std::stringstream info;
 
-    //change ['] to [ ]
+    //change [,] to [ ]
     while ((start_pos = str.find(",", start_pos)) != std::string::npos) {
         str.replace(start_pos, 1, ".");
         start_pos = start_pos + 2;
@@ -500,6 +498,65 @@ std::string check_and_convert_gps(std::string input) {
         send_log_info(info.str());
         info.str("");
     }
+
+    //check for multiple points (delete all but first and store firstlocation)
+    int pointloc = 0;
+    int pointcount = 0;
+    for (int i = 0; i < str.size(); i++) {
+        if (str[i] == '.') {
+            if (pointcount == 0) {
+                pointcount++;
+                pointloc = i;
+            }
+            else {
+                pointcount++;
+                str.erase(i, 1);
+                i--; // string is opgeschoven, volgende character is nu huidige character.
+            }
+
+        }
+    }
+
+    //if no points where found then add point on expected location 
+    if (input != "" && pointloc == 0) {
+        if (latlon == 0) {
+            str.insert(2,".");
+        }
+        if (latlon == 1) {
+            str.insert(1, ".");
+        }
+    }
+
+    //check if gps lat or long has expected format for netherlands, else delete input (lat 49. - 53. | lon 4. - 6.)
+    std::string beforedot = str.substr(0, pointloc); 
+    int beforedot_int;
+    try { beforedot_int = stoi(beforedot); }
+    catch (...)
+    {
+        beforedot_int = 0;
+    }
+    //check number if lattitude
+    if (latlon == 0) {
+        if (49 < beforedot_int && beforedot_int > 53) { beforedot_int = 0; }
+    //check number if Longitude     
+    }
+    if (latlon == 1) {
+        if (4 < beforedot_int && beforedot_int > 6) { beforedot_int = 0; }
+    }
+
+    //if string is empty ( input empty or gps corrupted) add OFN coordinates.
+    if (str.compare("") == 0) {
+        if (latlon == 0) {
+            return ofnlat;
+         }
+        else if (latlon == 1) {
+            return ofnlon;
+        }
+        else {
+            return input;
+        }
+    }
+
     //copy new string to output
     return str;
  }
